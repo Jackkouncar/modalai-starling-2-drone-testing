@@ -4,7 +4,7 @@
 - Arms drone, enters offboard mode
 - Takes off to 1m altitude
 - Hovers for 5 seconds
-- Lands using PX4 land mode
+- Soft-lands using smoothstep descent (see flight_config.soft_landing_z)
 """
 
 import rclpy
@@ -13,11 +13,12 @@ import time
 from enum import Enum
 
 from flight_config import (
-    LAND_COMMAND_REPEAT_SECONDS,
-    LAND_COMPLETE_WAIT_SECONDS,
+    LAND_COMMAND_SECONDS,
+    SOFT_LAND_DESCENT_SECONDS,
     TARGET_DRONE,
     TAKEOFF_Z_NED,
     log_environment_check,
+    soft_landing_z,
 )
 from px4_msgs.msg import (
     OffboardControlMode,
@@ -110,10 +111,8 @@ class TestTakeoffLand(Node):
             self.get_logger().info(message)
 
     def timer_cb(self):
+        self.publish_offboard_mode()
         dt = time.time() - self.state_start
-
-        if self.state != State.LAND:
-            self.publish_offboard_mode()
 
         if self.state == State.INIT:
             self.publish_setpoint(0.0, 0.0, self.takeoff_z)
@@ -135,13 +134,15 @@ class TestTakeoffLand(Node):
                 self.transition(State.LAND)
 
         elif self.state == State.LAND:
-            if dt < LAND_COMMAND_REPEAT_SECONDS:
-                self.land()
-                self.log_throttled("Sending PX4 land command...", every_n=10)
+            # soft_landing_z now uses smoothstep: gentle start and end to descent
+            self.publish_setpoint(0.0, 0.0, soft_landing_z(dt))
+            if dt < SOFT_LAND_DESCENT_SECONDS:
+                self.log_throttled(f"Soft descending... {dt:.1f}s")
                 return
 
-            self.log_throttled("PX4 landing in progress...")
-            if dt > LAND_COMPLETE_WAIT_SECONDS:
+            self.land()
+            self.log_throttled("Final landing command...")
+            if dt > SOFT_LAND_DESCENT_SECONDS + LAND_COMMAND_SECONDS:
                 self.get_logger().info("=== Test Complete ===")
                 raise SystemExit
 

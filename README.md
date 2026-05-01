@@ -45,7 +45,7 @@ Current limits:
 - Height: `1.0 m`
 - Movement: `1.5 m`
 - Square test diagonal reach: about `2.12 m` from the start point
-- Landing: PX4-managed land command; no custom near-ground offboard descent
+- Soft landing: slow descent to about `0.15 m`, then PX4 land command
 
 Have someone ready to take over or emergency stop during every test.
 
@@ -64,24 +64,11 @@ These scripts are currently tuned for indoor testing:
 
 - Takeoff height: `1.0 m`
 - Horizontal movement: `1.5 m`
-- Landing: sends PX4 land command for `2.0 s`, then waits up to `10.0 s` before the script exits
+- Soft landing descent: `5.0 s` down to about `0.15 m`, then PX4 land command
 
 Be aware that the square test reaches the corner point `(1.5, 1.5)`, which is about `2.12 m` diagonally from the origin.
 
-To change these limits later, edit `TAKEOFF_HEIGHT_M`, `TRANSIT_DISTANCE_M`, and the landing values in `flight_config.py`.
-
-## Post-Crash Landing Fix
-
-The older soft landing code manually commanded a near-ground offboard descent before sending PX4 land. After the takeoff/land test crashed during landing, that custom near-ground descent was removed.
-
-Current behavior:
-
-1. The drone hovers at the test height.
-2. The script sends PX4's land command.
-3. The script stops sending offboard position setpoints during landing.
-4. PX4 owns the landing instead of the Python script forcing a low-altitude position setpoint.
-
-Do not run the movement scripts until `test_takeoff_land.py` lands reliably again.
+To change these limits later, edit `TAKEOFF_HEIGHT_M`, `TRANSIT_DISTANCE_M`, and the soft landing values in `flight_config.py`.
 
 ## Important note
 

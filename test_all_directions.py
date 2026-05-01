@@ -22,14 +22,15 @@ from enum import Enum
 
 from flight_config import (
     HOVER_SETTLE_S,
-    LAND_COMMAND_REPEAT_SECONDS,
-    LAND_COMPLETE_WAIT_SECONDS,
+    LAND_COMMAND_SECONDS,
+    SOFT_LAND_DESCENT_SECONDS,
     TARGET_DRONE,
     TAKEOFF_Z_NED,
     TRANSIT_DISTANCE_M,
     TRANSIT_DURATION_S,
     log_environment_check,
     smooth_transit_xy,
+    soft_landing_z,
 )
 from px4_msgs.msg import (
     OffboardControlMode,
@@ -163,12 +164,10 @@ class TestAllDirections(Node):
         self.log_throttled(f"{self.state.name} -> ({x:.2f}, {y:.2f})  {dt:.1f}s")
 
     def timer_cb(self):
+        self.publish_offboard_mode()
         dt = time.time() - self.state_start
 
-        if self.state != State.LAND:
-            self.publish_offboard_mode()
-
-        # --- INIT: send setpoints, then arm & offboard ---
+        # --- INIT ---
         if self.state == State.INIT:
             self.publish_setpoint(0.0, 0.0, self.takeoff_z)
             if dt > 1.5:
@@ -211,13 +210,14 @@ class TestAllDirections(Node):
 
         # --- LAND ---
         elif self.state == State.LAND:
-            if dt < LAND_COMMAND_REPEAT_SECONDS:
-                self.land()
-                self.log_throttled("Sending PX4 land command...", every_n=10)
+            self.publish_setpoint(0.0, 0.0, soft_landing_z(dt))
+            if dt < SOFT_LAND_DESCENT_SECONDS:
+                self.log_throttled(f"Soft descending... {dt:.1f}s")
                 return
 
-            self.log_throttled("PX4 landing in progress...")
-            if dt > LAND_COMPLETE_WAIT_SECONDS:
+            self.land()
+            self.log_throttled("Final landing command...")
+            if dt > SOFT_LAND_DESCENT_SECONDS + LAND_COMMAND_SECONDS:
                 self.get_logger().info("=== Test Complete: Square pattern done ===")
                 raise SystemExit
 
