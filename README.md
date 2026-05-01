@@ -1,6 +1,6 @@
-# ModalAI Starling 2 Drone Test Scripts
+# ModalAI Starling 2 Max Drone Test Scripts
 
-ROS 2 Foxy / PX4 offboard test scripts for basic movement checks with the ModalAI Starling 2 drone setup.
+ROS 2 Foxy / PX4 offboard test scripts for basic movement checks with the ModalAI Starling 2 Max drone setup.
 
 Repository:
 
@@ -29,13 +29,10 @@ Make sure `echo $ROS_DISTRO` prints:
 foxy
 ```
 
-Run tests in this order:
+Run this first:
 
 ```bash
 python3 test_takeoff_land.py
-python3 test_forward_backward.py
-python3 test_left_right.py
-python3 test_all_directions.py
 ```
 
 Start with `test_takeoff_land.py` only. Do not run the movement scripts until takeoff and landing are stable.
@@ -45,9 +42,24 @@ Current limits:
 - Height: `1.0 m`
 - Movement: `1.5 m`
 - Square test diagonal reach: about `2.12 m` from the start point
-- Soft landing: slow descent to about `0.15 m`, then PX4 land command
+- Takeoff/land safety: waits for valid local position, captures home, then flies relative to home
 
 Have someone ready to take over or emergency stop during every test.
+
+## Takeoff/Land Safety Gate
+
+`test_takeoff_land.py` now waits for PX4 local-position feedback before it arms or enters offboard.
+
+It checks:
+
+1. `/fmu/out/vehicle_local_position` is fresh.
+2. PX4 reports valid `x/y/z` position and velocity.
+3. Local position is stable before arming.
+4. `/fmu/out/vehicle_status` is fresh and not in failsafe.
+5. The current local `x/y/z` is captured as home.
+6. Takeoff, hover, and descent are commanded relative to that captured home point.
+
+If the drone drifts too far from home or the position estimate becomes invalid, the script commands land and exits.
 
 ## Included scripts
 
@@ -64,11 +76,12 @@ These scripts are currently tuned for indoor testing:
 
 - Takeoff height: `1.0 m`
 - Horizontal movement: `1.5 m`
-- Soft landing descent: `5.0 s` down to about `0.15 m`, then PX4 land command
+- Soft landing descent: `6.0 s` down to about `0.15 m`, then PX4 land command
+- Safety box for takeoff/land: `0.75 m` horizontal error and `1.6 m` max altitude
 
 Be aware that the square test reaches the corner point `(1.5, 1.5)`, which is about `2.12 m` diagonally from the origin.
 
-To change these limits later, edit `TAKEOFF_HEIGHT_M`, `TRANSIT_DISTANCE_M`, and the soft landing values in `flight_config.py`.
+To change these limits later, edit `TAKEOFF_HEIGHT_M`, `TRANSIT_DISTANCE_M`, safety values, and the soft landing values in `flight_config.py`.
 
 ## Important note
 
