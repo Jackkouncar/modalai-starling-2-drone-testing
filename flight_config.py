@@ -4,7 +4,7 @@ import os
 
 
 TARGET_DRONE = "ModalAI Starling 2 Max"
-TARGET_ROS_DISTRO = "foxy"
+SUPPORTED_ROS_DISTROS = ("foxy", "humble")
 
 TAKEOFF_HEIGHT_M = 1.0
 TAKEOFF_Z_NED = -TAKEOFF_HEIGHT_M
@@ -23,7 +23,9 @@ STABILITY_MAX_DRIFT_M = 0.12
 
 # In-flight guardrails for takeoff/hover/land testing.
 SAFETY_MAX_HORIZONTAL_ERROR_M = 0.75
+SIM_SAFETY_MAX_HORIZONTAL_ERROR_M = 2.0
 SAFETY_MAX_ALTITUDE_M = 1.6
+SAFETY_VIOLATION_GRACE_SECONDS = 0.75
 
 # Used by the movement scripts and the final descent in takeoff/land.
 SOFT_LAND_FINAL_HEIGHT_M = 0.15
@@ -61,17 +63,38 @@ def soft_landing_z(elapsed_seconds):
 def log_environment_check(node):
     """Log the ROS 2 distro so the team can catch Humble/Foxy mixups early."""
     ros_distro = os.environ.get("ROS_DISTRO")
+    supported = ", ".join(SUPPORTED_ROS_DISTROS)
 
     if ros_distro is None:
         node.get_logger().warn(
-            f"ROS_DISTRO is not set. This repo is currently targeted for ROS 2 {TARGET_ROS_DISTRO}."
+            f"ROS_DISTRO is not set. This repo supports ROS 2: {supported}."
         )
         return
 
-    if ros_distro != TARGET_ROS_DISTRO:
+    if ros_distro not in SUPPORTED_ROS_DISTROS:
         node.get_logger().warn(
-            f"ROS_DISTRO is '{ros_distro}', but these tests are targeted for ROS 2 {TARGET_ROS_DISTRO}."
+            f"ROS_DISTRO is '{ros_distro}', but these tests are checked for ROS 2: {supported}."
         )
         return
 
     node.get_logger().info(f"ROS 2 distro check passed: {ros_distro}")
+
+
+def running_lab_simulation():
+    """Return true for the Humble/Gazebo lab setup or an explicit sim override."""
+    sim_env = os.environ.get("DRONE_SIM", "").lower()
+    return sim_env in ("1", "true", "yes") or os.environ.get("ROS_DISTRO") == "humble"
+
+
+def skip_vehicle_status_gate():
+    """Return true when a sim demo should not block on PX4 vehicle_status."""
+    value = os.environ.get("DRONE_SIM_SKIP_STATUS_GATE", "").lower()
+    return value in ("1", "true", "yes")
+
+
+def safety_max_horizontal_error():
+    """Use the tighter physical-drone limit unless we are in the lab sim."""
+    if running_lab_simulation():
+        return SIM_SAFETY_MAX_HORIZONTAL_ERROR_M
+
+    return SAFETY_MAX_HORIZONTAL_ERROR_M

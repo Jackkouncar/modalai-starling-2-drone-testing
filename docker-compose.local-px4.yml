@@ -1,0 +1,16 @@
+services:
+  sim:
+    build:
+      args:
+        PX4_MSGS_REF: ${PX4_MSGS_REF:-main}
+    environment:
+      PX4_HOME: /workspace/local-PX4-Autopilot
+      GZ_VERSION: harmonic
+      PX4_GZ_WORLD: ${PX4_GZ_WORLD:-baylands}
+      PX4_SIM_TARGET: ${PX4_SIM_TARGET:-gz_x500_depth}
+    volumes:
+      - ${PX4_HOST_DIR:-/home/jackk/ros2_simulation/PX4-Autopilot}:/workspace/local-PX4-Autopilot:rw
+      - px4-local-harmonic-build:/workspace/local-PX4-Autopilot/build
+
+volumes:
+  px4-local-harmonic-build:

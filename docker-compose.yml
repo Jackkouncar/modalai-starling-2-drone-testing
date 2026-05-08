@@ -1,0 +1,42 @@
+name: modalai-starling2
+
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PX4_REPO: ${PX4_REPO:-https://github.com/PX4/PX4-Autopilot.git}
+        PX4_REF: ${PX4_REF:-release/1.14}
+        PX4_MSGS_REPO: ${PX4_MSGS_REPO:-https://github.com/PX4/px4_msgs.git}
+        PX4_MSGS_REF: ${PX4_MSGS_REF:-release/1.14}
+        MICRO_XRCE_DDS_AGENT_REF: ${MICRO_XRCE_DDS_AGENT_REF:-v2.4.3}
+    image: modalai-starling2-gazebo:humble
+    command: ["bash", "/workspace/drone-tests/docker/run_baylands.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    environment:
+      AGENT_PORT: ${AGENT_PORT:-8888}
+      DISPLAY: ${DISPLAY:-:0}
+      DRONE_SIM: "1"
+      LIBGL_ALWAYS_SOFTWARE: ${LIBGL_ALWAYS_SOFTWARE:-0}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-all}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      PX4_HOME: /workspace/PX4-Autopilot
+      PX4_SIM_TARGET: ${PX4_SIM_TARGET:-gz_x500_depth}
+      QT_X11_NO_MITSHM: "1"
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ROS_WS: /workspace/ros2_ws
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-wayland-0}
+      XDG_RUNTIME_DIR: ${XDG_RUNTIME_DIR:-/run/user/1000}
+    volumes:
+      - .:/workspace/drone-tests:rw
+      - px4-build:/workspace/PX4-Autopilot/build
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /mnt/wslg:/mnt/wslg:rw
+
+volumes:
+  px4-build:
