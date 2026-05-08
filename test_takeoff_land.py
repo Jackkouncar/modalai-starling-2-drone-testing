@@ -224,6 +224,25 @@ class TestTakeoffLand(Node):
         )
         return finite and flags_ok
 
+    def local_position_block_reason(self):
+        if self.local_position is None:
+            return "no local position message received yet"
+
+        age = time.time() - self.local_position_seen_at
+        if age >= 0.5:
+            return f"local position is stale ({age:.1f}s old)"
+
+        pos = self.local_position
+        values = (pos.x, pos.y, pos.z, pos.vx, pos.vy, pos.vz)
+        if not all(math.isfinite(value) for value in values):
+            return "local position contains non-finite position or velocity values"
+
+        return (
+            "local position flags are not valid "
+            f"(xy={getattr(pos, 'xy_valid', None)}, z={getattr(pos, 'z_valid', None)}, "
+            f"v_xy={getattr(pos, 'v_xy_valid', None)}, v_z={getattr(pos, 'v_z_valid', None)})"
+        )
+
     def local_position_stable(self):
         if not self.local_position_valid():
             return False
@@ -363,7 +382,10 @@ class TestTakeoffLand(Node):
 
         if self.state == State.WAIT_FOR_POSITION:
             if not self.local_position_valid():
-                self.log_throttled("Waiting for valid local position and velocity...")
+                self.log_throttled(
+                    "Waiting for valid local position and velocity: "
+                    f"{self.local_position_block_reason()}..."
+                )
                 return
 
             if not self.status_allows_flight():

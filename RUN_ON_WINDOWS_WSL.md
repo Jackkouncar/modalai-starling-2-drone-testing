@@ -192,6 +192,169 @@ QGroundControl is optional for this Docker demo. The Docker test starts a small 
 
 ## Common Problems
 
+### Stuck On `Waiting for valid local position and velocity`
+
+This means the Python test is not seeing a fresh, valid PX4 local-position estimate yet. It is usually one of these:
+
+- the sim is still compiling or Gazebo is not ready yet
+- PX4 is running but the Micro XRCE-DDS bridge has not created the local-position topics yet
+- the image was built with mismatched `px4_msgs`
+- the PX4 build volume is stale from an older run
+
+Do this exact recovery path.
+
+In Terminal 1, make sure the sim is still running and wait until it shows:
+
+```text
+Gazebo world is ready
+Spawning Gazebo model
+world: baylands, model: x500_depth_0
+Startup script returned successfully
+home set
+```
+
+The first sim start can compile PX4 for several minutes. Wait for that to finish before running the test.
+
+If it still gets stuck, stop the sim:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml down
+```
+
+Check that the PX4 checkout is the WSL checkout and has the Baylands world:
+
+```bash
+PX4_HOST_DIR="$HOME/ros2_simulation/PX4-Autopilot"
+test -f "$PX4_HOST_DIR/Tools/simulation/gz/worlds/baylands.sdf" && echo "PX4 Baylands world found"
+```
+
+If it does not print `PX4 Baylands world found`, create or update the PX4 checkout:
+
+```bash
+mkdir -p "$HOME/ros2_simulation"
+
+if [ ! -d "$HOME/ros2_simulation/PX4-Autopilot/.git" ]; then
+  git clone https://github.com/PX4/PX4-Autopilot.git "$HOME/ros2_simulation/PX4-Autopilot"
+fi
+
+cd "$HOME/ros2_simulation/PX4-Autopilot"
+git pull --ff-only
+git submodule update --init --recursive
+```
+
+Return to this repo:
+
+```bash
+cd ~/modalai-starling-2-drone-testing
+```
+
+On Jack's current PC, use:
+
+```bash
+cd "/mnt/c/Users/JackK/Downloads/Drone Testing"
+```
+
+Clear the stale mounted-PX4 build volume:
+
+```bash
+docker volume rm modalai-starling2_px4-local-harmonic-build 2>/dev/null || true
+```
+
+Rebuild with PX4 main message definitions:
+
+```bash
+PX4_MSGS_REF=main docker compose -f docker-compose.yml -f docker-compose.local-px4.yml build
+```
+
+Start the sim again in Terminal 1:
+
+```bash
+xhost +local:root
+
+PX4_HOST_DIR="$HOME/ros2_simulation/PX4-Autopilot" \
+PX4_GZ_WORLD=baylands \
+PX4_SIM_TARGET=gz_x500_depth \
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml up --force-recreate sim
+```
+
+Wait again for `Startup script returned successfully` and `home set`.
+
+In Terminal 2, verify ROS can see PX4 local-position topics:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml exec sim \
+  bash -lc 'set +u; source /opt/ros/humble/setup.bash; source /workspace/ros2_ws/install/setup.bash; set -u; ros2 topic list | grep vehicle_local_position'
+```
+
+Expected output should include at least one of these:
+
+```text
+/fmu/out/vehicle_local_position
+/fmu/out/vehicle_local_position_v1
+```
+
+Then verify one local-position message arrives:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml exec sim \
+  bash -lc 'set +u; source /opt/ros/humble/setup.bash; source /workspace/ros2_ws/install/setup.bash; set -u; timeout 5 ros2 topic echo /fmu/out/vehicle_local_position_v1 --once || timeout 5 ros2 topic echo /fmu/out/vehicle_local_position --once'
+```
+
+If no message prints, check Terminal 1 for these Micro XRCE-DDS lines:
+
+```text
+session established
+successfully created rt/fmu/out/vehicle_local_position
+successfully created rt/fmu/out/vehicle_local_position_v1
+```
+
+Once the topic check works, run the test:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml exec \
+  -e DRONE_SIM_SKIP_STATUS_GATE=1 sim \
+  bash /workspace/drone-tests/docker/run_test.sh test_takeoff_land.py
+```
+
+### `No connection to the GCS` / QGroundControl Not Connecting
+
+QGroundControl is not required for this Docker demo. The test command above automatically starts a small MAVLink GCS heartbeat when `DRONE_SIM_SKIP_STATUS_GATE=1` is set.
+
+If PX4 keeps printing this:
+
+```text
+Preflight Fail: No connection to the GCS
+```
+
+use the manual third-terminal heartbeat path.
+
+Terminal 1: keep the sim running.
+
+Terminal 3: start the heartbeat and leave it running:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml exec sim \
+  bash -lc 'python3 /workspace/drone-tests/docker/send_gcs_heartbeat.py'
+```
+
+Expected output:
+
+```text
+PX4 heartbeat received from system=1, component=0.
+Sending GCS heartbeat. Leave this running while the mission test runs.
+```
+
+Terminal 2: run the test and tell it the heartbeat is already running:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-px4.yml exec \
+  -e DRONE_SIM_SKIP_STATUS_GATE=1 \
+  -e DRONE_SIM_EXTERNAL_HEARTBEAT=1 \
+  sim bash /workspace/drone-tests/docker/run_test.sh test_takeoff_land.py
+```
+
+Use this only for the Gazebo/Docker simulation. Do not use these bypass flags on the real drone.
+
 If Docker says permission denied:
 
 ```bash

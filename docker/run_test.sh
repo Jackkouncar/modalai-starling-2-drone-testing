@@ -28,9 +28,13 @@ fi
 
 if [ "${DRONE_SIM_SKIP_STATUS_GATE:-}" = "1" ]; then
     echo "Sim-only mode: skipping PX4 vehicle_status preflight gate."
-    echo "Starting sim-only MAVLink GCS heartbeat for PX4 preflight."
-    python3 /workspace/drone-tests/docker/send_gcs_heartbeat.py &
-    heartbeat_pid=$!
+    if [ "${DRONE_SIM_EXTERNAL_HEARTBEAT:-}" = "1" ]; then
+        echo "Using externally started sim-only MAVLink GCS heartbeat."
+    else
+        echo "Starting sim-only MAVLink GCS heartbeat for PX4 preflight."
+        python3 /workspace/drone-tests/docker/send_gcs_heartbeat.py &
+        heartbeat_pid=$!
+    fi
 fi
 
 cleanup() {
