@@ -30,6 +30,8 @@ The successful run completed takeoff, hover, descent, and land, ending with:
 
 For exact submission/demo commands, use [DOCKER_SUBMISSION.md](DOCKER_SUBMISSION.md).
 
+For detailed Windows/WSL run instructions, use [RUN_ON_WINDOWS_WSL.md](RUN_ON_WINDOWS_WSL.md).
+
 ## Docker Quick Start
 
 Build the local Baylands image:
